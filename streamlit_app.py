@@ -45,11 +45,15 @@ if pv_data is not None and price_data is not None:
     total_eeg_revenue = np.sum(eeg_paid)
     lost_eeg_revenue = np.sum(lost_energy_kwh * eeg_ct_per_kwh)
 
+    # Häufigkeit der Abregelung durch negative Preise in Stunden
+    curtailed_hours = np.sum(price_ct_per_kwh <= 0) / 4
+
     # Ausgabe
     st.subheader("Wirtschaftlichkeitsanalyse")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     col1.metric("Gesamtertrag (EEG) [€]", f"{total_eeg_revenue / 100:.2f}")
     col2.metric("Verlust durch Clipping [€]", f"{lost_eeg_revenue / 100:.2f}")
+    col3.metric("Abregelung wegen negativer Preise [h]", f"{curtailed_hours:.1f}")
 
     # Visualisierung
     st.subheader("Clipping-Analyse")
@@ -64,6 +68,9 @@ if pv_data is not None and price_data is not None:
 
     st.subheader("Verlorene Energie durch Clipping")
     st.line_chart(lost_energy_kwh, use_container_width=True)
+
+    st.subheader("Day-Ahead Preisverlauf (ct/kWh)")
+    st.line_chart(price_ct_per_kwh, use_container_width=True)
 
 else:
     st.info("Bitte lade beide Dateien hoch, um die Analyse zu starten.")

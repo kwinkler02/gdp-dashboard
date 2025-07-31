@@ -1,151 +1,69 @@
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+st.set_page_config(page_title="PV Lastgang Analyse", layout="wide")
+st.title("PV Lastgang Wirtschaftlichkeitsanalyse mit Clipping und EEG")
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# --- Datei-Upload ---
+st.sidebar.header("Daten eingeben")
+pv_file = st.sidebar.file_uploader("PV Lastgang (Viertelstundenwerte in kWh)", type=["csv", "xlsx"])
+price_file = st.sidebar.file_uploader("Day-Ahead Preise (€/MWh, Viertelstundenwerte)", type=["csv", "xlsx"])
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# --- Parameter-Eingaben ---
+max_power_kw = st.sidebar.number_input("Wechselrichter Maximalleistung (kW)", min_value=0.0, step=0.1)
+eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.0, step=0.1)  # feste Vergütung
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+def load_data(uploaded_file):
+    if uploaded_file:
+        if uploaded_file.name.endswith(".csv"):
+            return pd.read_csv(uploaded_file, parse_dates=True, index_col=0)
+        elif uploaded_file.name.endswith(".xlsx"):
+            return pd.read_excel(uploaded_file, parse_dates=True, index_col=0)
+    return None
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+pv_data = load_data(pv_file)
+price_data = load_data(price_file)
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+if pv_data is not None and price_data is not None:
+    st.subheader("Datenübersicht")
+    st.write("PV Lastgang (kWh pro 15 Minuten):", pv_data.head())
+    st.write("Day-Ahead Preise (€/MWh):", price_data.head())
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+    # Umrechnung: 15-Minuten kWh * 4 = kW Leistung
+    pv_power_kw = pv_data.iloc[:, 0] * 4
+    clipped_power_kw = np.minimum(pv_power_kw, max_power_kw)
+    clipped_energy_kwh = clipped_power_kw / 4  # zurück in kWh
+    lost_energy_kwh = pv_data.iloc[:, 0] - clipped_energy_kwh
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+    # Day-Ahead Preis in €/MWh -> ct/kWh
+    price_ct_per_kwh = price_data.iloc[:, 0] / 10
 
-    return gdp_df
+    # EEG: Feste Vergütung wenn Preis > 0, sonst 0 (keine Einspeisung)
+    eeg_paid = np.where(price_ct_per_kwh > 0, clipped_energy_kwh * eeg_ct_per_kwh, 0)
+    total_eeg_revenue = np.sum(eeg_paid)
+    lost_eeg_revenue = np.sum(lost_energy_kwh * eeg_ct_per_kwh)
 
-gdp_df = get_gdp_data()
+    # Ausgabe
+    st.subheader("Wirtschaftlichkeitsanalyse")
+    col1, col2 = st.columns(2)
+    col1.metric("Gesamtertrag (EEG) [€]", f"{total_eeg_revenue / 100:.2f}")
+    col2.metric("Verlust durch Clipping [€]", f"{lost_eeg_revenue / 100:.2f}")
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
+    # Visualisierung
+    st.subheader("Clipping-Analyse")
+    fig, ax = plt.subplots(figsize=(12, 4))
+    ax.plot(pv_power_kw.index, pv_power_kw, label="Original Leistung (kW)", alpha=0.6)
+    ax.plot(pv_power_kw.index, clipped_power_kw, label="Nach Clipping (kW)", linestyle="--")
+    ax.axhline(max_power_kw, color="red", linestyle=":", label="Max. WR-Leistung")
+    ax.set_ylabel("Leistung [kW]")
+    ax.set_title("Clipping im Zeitverlauf")
+    ax.legend()
+    st.pyplot(fig)
 
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
+    st.subheader("Verlorene Energie durch Clipping")
+    st.line_chart(lost_energy_kwh, use_container_width=True)
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+else:
+    st.info("Bitte lade beide Dateien hoch, um die Analyse zu starten.")

@@ -69,8 +69,9 @@ if pv_data is not None and price_data is not None:
     st.subheader("Verlorene Energie durch Clipping")
     st.line_chart(lost_energy_kwh, use_container_width=True)
 
-    st.subheader("Day-Ahead Preisverlauf (ct/kWh)")
-    st.line_chart(price_ct_per_kwh, use_container_width=True)
+    st.subheader("Day-Ahead Preisverlauf (ct/kWh, stündlich aggregiert)")
+    hourly_prices = price_ct_per_kwh.resample("H").mean()
+    st.line_chart(hourly_prices, use_container_width=True)
 
 else:
     st.info("Bitte lade beide Dateien hoch, um die Analyse zu starten.")

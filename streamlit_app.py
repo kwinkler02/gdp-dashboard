@@ -65,7 +65,40 @@ if pv_data is not None and price_data is not None:
     col2.metric("Verlust durch Clipping", clipping_loss_text)
     col3.metric("Abregelung wegen negativer Preise", curtailed_hours_text)
 
-    st.markdown("###            # Energetische Auswertung
+        st.markdown("#### Energetische Auswertung")
+    col4, col5, col6 = st.columns(3)
+    energy_loss_text = f"{total_lost_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", ".")
+    energy_pct_text = f"{lost_energy_pct:,.2f} %".replace(",", "X").replace(".", ",").replace("X", ".")
+    energy_generated_text = f"{total_generated_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", ".")
+    col4.metric("Verlust durch Clipping", energy_loss_text)
+    col5.metric("Verlust in Prozent", energy_pct_text)
+    col6.metric("Gesamtertrag", energy_generated_text)
+
+    # --- PDF Export ---
+    if st.button("📄 PDF-Bericht exportieren"):
+        from matplotlib.backends.backend_pdf import PdfPages
+        from io import BytesIO
+        pdf_buffer = BytesIO()
+        with PdfPages(pdf_buffer) as pdf:
+            # Deckblatt
+            fig_cover = plt.figure(figsize=(8.27, 11.69))
+            fig_cover.clf()
+            fig_cover.text(0.5, 0.75, 'Wirtschaftlichkeitsanalyse – PV Clipping', ha='center', va='center', fontsize=20)
+            fig_cover.text(0.5, 0.7, 'Erstellt: ' + pd.Timestamp.now().strftime('%d.%m.%Y'), ha='center', va='center', fontsize=12)
+            pdf.savefig(fig_cover)
+            plt.close(fig_cover)
+
+            # Monetäre Auswertung
+            fig_monetary, axm = plt.subplots(figsize=(8.27, 5))
+            axm.axis('off')
+            text = f"""Gesamtertrag EEG: {eeg_text}
+Verlust durch Clipping: {clipping_loss_text}
+Abregelung bei negativen Preisen: {curtailed_hours_text}"""
+            axm.text(0.1, 0.5, text, fontsize=12, va='center')
+            pdf.savefig(fig_monetary)
+            plt.close(fig_monetary)
+
+            # Energetische Auswertung
             fig_energy, axe = plt.subplots(figsize=(8.27, 5))
             axe.axis('off')
             text2 = f"""Verlust durch Clipping: {energy_loss_text}
@@ -82,3 +115,6 @@ Gesamtertrag: {energy_generated_text}"""
 
         pdf_buffer.seek(0)
         st.download_button("Download PDF", data=pdf_buffer, file_name="PV_Wirtschaftlichkeitsanalyse.pdf", mime='application/pdf')
+
+else:
+    st.info("Bitte lade beide Dateien hoch, um die Analyse zu starten.")

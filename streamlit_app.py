@@ -27,6 +27,19 @@ pv_data = load_data(pv_file)
 price_data = load_data(price_file)
 
 if pv_data is not None and price_data is not None:
+    st.subheader("Analyse der negativen Preise je Viertelstunde")
+    negative_price_mask = (pv_data.iloc[:, 0] > 0) & (price_ct_per_kwh < 0).values
+    negative_price_times = price_ct_per_kwh[negative_price_mask]
+    if not negative_price_times.empty:
+        fig_neg, ax_neg = plt.subplots(figsize=(12, 3))
+        ax_neg.plot(negative_price_times.index, negative_price_times.values, '.', color='red', label='Negativpreis bei PV-Einspeisung')
+        ax_neg.set_ylabel("Preis [ct/kWh]")
+        ax_neg.set_title("Zeitfenster mit negativer Vergütung bei Einspeisung")
+        ax_neg.legend()
+        fig_neg.autofmt_xdate()
+        st.pyplot(fig_neg)
+    else:
+        st.info("Keine Viertelstunden mit gleichzeitig negativer Vergütung und Einspeisung gefunden.")
     st.subheader("Datenübersicht")
     st.write("PV Lastgang (kWh pro 15 Minuten):", pv_data.head())
     st.write("Day-Ahead Preise (€/MWh):", price_data.head())

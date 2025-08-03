@@ -109,17 +109,7 @@ if pv_data is not None and price_data is not None:
     st.pyplot(fig2)
 
     # --- PDF Export ---
-    st.subheader("Clipping-Analyse Visualisierung")
-    st.pyplot(fig)
-
-    st.subheader("Verlorene Energie durch Clipping")
-    st.pyplot(fig3)
-
-    st.subheader("Day-Ahead Preisverlauf")
-    st.pyplot(fig2)
-
-    # --- PDF Export ---
-    if st.button("📄 PDF-Bericht exportieren"):
+    if st.button("📄 PDF-Bericht exportieren"):("📄 PDF-Bericht exportieren"):
         from matplotlib.backends.backend_pdf import PdfPages
         from io import BytesIO
         pdf_buffer = BytesIO()

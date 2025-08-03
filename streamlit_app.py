@@ -95,7 +95,6 @@ if pv_data is not None and price_data is not None:
     st.pyplot(fig3)
 
     # --- Day-Ahead Preisverlauf Visualisierung ---
-    st.subheader("Day-Ahead Preisverlauf")
     fig2, ax2 = plt.subplots(figsize=(12, 4))
     ax2.plot(price_ct_per_kwh.index, price_ct_per_kwh.where(price_ct_per_kwh >= 0), color="orange", label="Preis ≥ 0 ct/kWh")
     ax2.plot(price_ct_per_kwh.index, price_ct_per_kwh.where(price_ct_per_kwh < 0), color="red", label="Preis < 0 ct/kWh")

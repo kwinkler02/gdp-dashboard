@@ -46,7 +46,7 @@ if pv_data is not None and price_data is not None:
     lost_eeg_revenue = np.sum(lost_energy_kwh * eeg_ct_per_kwh)
 
     # Häufigkeit der Abregelung durch negative Preise in Stunden
-    curtailed_hours = np.sum(price_ct_per_kwh <= 0) / 4
+    curtailed_hours = np.sum((pv_data.iloc[:, 0] > 0) & (price_ct_per_kwh < 0)) / 4
 
     # Energieverluste durch Clipping (kWh und %)
     total_pv_energy = np.sum(pv_data.iloc[:, 0])
@@ -83,7 +83,7 @@ if pv_data is not None and price_data is not None:
     st.subheader("Day-Ahead Preisverlauf (ct/kWh, stündlich aggregiert)")
     hourly_prices = price_ct_per_kwh.resample("H").mean()
     fig2, ax2 = plt.subplots(figsize=(12, 4))
-    ax2.bar(hourly_prices.index, hourly_prices, width=0.03, align='center')
+    ax2.plot(hourly_prices.index, hourly_prices, label="Day-Ahead Preis", color="orange")
     ax2.set_ylabel("Preis [ct/kWh]")
     ax2.set_title("Day-Ahead Preise (aggregiert nach Stunden)")
     st.pyplot(fig2)

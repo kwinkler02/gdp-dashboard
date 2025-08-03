@@ -64,7 +64,7 @@ if pv_data is not None and price_data is not None:
     col1.metric("Gesamtertrag EEG", eeg_text)
     col2.metric("Verlust durch Clipping", clipping_loss_text)
     col3.metric("Abregelung wegen negativer Preise", curtailed_hours_text)
-    st.markdown("#### Energetische Auswertung")("#### Energetische Auswertung")
+    st.markdown("#### Energetische Auswertung")
     col4, col5, col6 = st.columns(3)
     energy_loss_text = f"{total_lost_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", ".")
     energy_pct_text = f"{lost_energy_pct:,.2f} %".replace(",", "X").replace(".", ",").replace("X", ".")

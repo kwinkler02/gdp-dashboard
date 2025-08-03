@@ -72,7 +72,41 @@ if pv_data is not None and price_data is not None:
     col5.metric("Verlust in Prozent", energy_pct_text)
     col6.metric("Gesamtertrag", energy_generated_text)
 
-        # --- Clipping-Analyse (Grafiken) ---
+    # --- Clipping-Analyse Visualisierung ---
+    st.subheader("Clipping-Analyse")
+    fig, ax = plt.subplots(figsize=(12, 4))
+    clipping_mask = pv_power_kw > max_power_kw
+    ax.bar(pv_power_kw.index, clipped_power_kw, label="Nach Clipping", color="darkorange", alpha=0.6)
+    ax.bar(pv_power_kw.index[clipping_mask], (pv_power_kw - max_power_kw)[clipping_mask], bottom=max_power_kw, label="Über Clipping-Grenze", color="red")
+    ax.axhline(max_power_kw, color="red", linestyle=":", label="Max. WR-Leistung")
+    ax.set_ylabel("Leistung in kW")
+    ax.set_title("Clipping im Zeitverlauf")
+    ax.legend()
+    ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
+    st.pyplot(fig)
+
+    # --- Clipping Verluste Visualisierung ---
+    st.subheader("Verlorene Energie durch Clipping")
+    fig3, ax3 = plt.subplots(figsize=(12, 4))
+    ax3.bar(lost_energy_kwh.resample("M").sum().index, lost_energy_kwh.resample("M").sum().values, width=20, color="salmon")
+    ax3.set_ylabel("Verlust in kWh")
+    ax3.set_title("Clipping-Verluste pro Monat")
+    ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
+    st.pyplot(fig3)
+
+    # --- Day-Ahead Preisverlauf Visualisierung ---
+    st.subheader("Day-Ahead Preisverlauf")
+    fig2, ax2 = plt.subplots(figsize=(12, 4))
+    ax2.plot(price_ct_per_kwh.index, price_ct_per_kwh.where(price_ct_per_kwh >= 0), color="orange", label="Preis ≥ 0 ct/kWh")
+    ax2.plot(price_ct_per_kwh.index, price_ct_per_kwh.where(price_ct_per_kwh < 0), color="red", label="Preis < 0 ct/kWh")
+    ax2.set_ylabel("Preis in ct/kWh")
+    ax2.set_title("Day-Ahead Preise")
+    ax2.axhline(0, color='black', linestyle='--', linewidth=1, label="Null-Linie")
+    ax2.legend()
+    ax2.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
+    st.pyplot(fig2)
+
+    # --- PDF Export ---
     st.subheader("Clipping-Analyse Visualisierung")
     st.pyplot(fig)
 

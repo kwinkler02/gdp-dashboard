@@ -27,18 +27,7 @@ pv_data = load_data(pv_file)
 price_data = load_data(price_file)
 
 if pv_data is not None and price_data is not None:
-    st.subheader("Analyse der negativen Preise je Viertelstunde")
-    price_ct_per_kwh = price_data.iloc[:, 0] / 10  # Sicherstellen, dass Variable vorher definiert ist
-    negative_price_mask = (pv_data.iloc[:, 0] > 0) & (price_data.iloc[:, 0] < 0)
-    negative_price_times = price_ct_per_kwh[negative_price_mask]
-    if not negative_price_times.empty:
-        fig_neg, ax_neg = plt.subplots(figsize=(12, 3))
-        ax_neg.plot(negative_price_times.index, negative_price_times.values, '.', color='red', label='Negativpreis bei PV-Einspeisung')
-        ax_neg.set_ylabel("Preis [ct/kWh]")
-        ax_neg.set_title("Zeitfenster mit negativer Vergütung bei Einspeisung")
-        ax_neg.legend()
-        fig_neg.autofmt_xdate()
-        st.pyplot(fig_neg)
+
     else:
         st.info("Keine Viertelstunden mit gleichzeitig negativer Vergütung und Einspeisung gefunden.")
     st.subheader("Datenübersicht")
@@ -91,12 +80,11 @@ if pv_data is not None and price_data is not None:
     ax.legend()
     st.pyplot(fig)
 
-    st.subheader("Verlorene Energie durch Clipping (stündlich, nicht aggregiert)")
-    hourly_lost_power_kw = lost_energy_kwh * 4
+    st.subheader("Verlorene Energie durch Clipping (Viertelstundenbasis, nicht aggregiert)")
     fig3, ax3 = plt.subplots(figsize=(12, 4))
-    ax3.bar(hourly_lost_power_kw.index, hourly_lost_power_kw.values, width=0.02, color="salmon")
-    ax3.set_ylabel("Verlustleistung [kW]")
-    ax3.set_title("Clipping-Verlustleistung im Zeitverlauf (Stundenbasis, X-Achse mit Monatslabel)")
+    ax3.bar(lost_energy_kwh.index, lost_energy_kwh.values, width=0.01, color="salmon")
+    ax3.set_ylabel("Verlust [kWh]")
+    ax3.set_title("Clipping-Verluste im Zeitverlauf (15-Minuten-Auflösung)")
     ax3.xaxis.set_major_locator(plt.MaxNLocator(12))
     fig3.autofmt_xdate()
     st.pyplot(fig3)
@@ -104,9 +92,13 @@ if pv_data is not None and price_data is not None:
     st.subheader("Day-Ahead Preisverlauf (ct/kWh, stündlich aggregiert)")
     hourly_prices = price_ct_per_kwh.resample("H").mean()
     fig2, ax2 = plt.subplots(figsize=(12, 4))
-    ax2.plot(hourly_prices.index, hourly_prices, color="orange", label="Preis ≥ 0 ct/kWh")
-    ax2.plot(hourly_prices[hourly_prices < 0].index,
-             hourly_prices[hourly_prices < 0],
+    positive_mask = hourly_prices >= 0
+    negative_mask = hourly_prices < 0
+    ax2.plot(hourly_prices[positive_mask].index,
+             hourly_prices[positive_mask],
+             color="orange", label="Preis ≥ 0 ct/kWh")
+    ax2.plot(hourly_prices[negative_mask].index,
+             hourly_prices[negative_mask],
              color="red", label="Preis < 0 ct/kWh")
     ax2.set_ylabel("Preis [ct/kWh]")
     ax2.set_title("Day-Ahead Preise (aggregiert nach Stunden, negativ hervorgehoben)")

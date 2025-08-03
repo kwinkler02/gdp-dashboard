@@ -81,8 +81,11 @@ if pv_data is not None and price_data is not None:
     st.line_chart(lost_energy_kwh, use_container_width=True)
 
     st.subheader("Day-Ahead Preisverlauf (ct/kWh, stündlich aggregiert)")
-    hourly_prices = price_ct_per_kwh.resample("H").mean()
-    st.line_chart(hourly_prices, use_container_width=True)
+    fig2, ax2 = plt.subplots(figsize=(12, 4))
+    ax2.bar(hourly_prices.index, hourly_prices, width=0.03, align='center')
+    ax2.set_ylabel("Preis [ct/kWh]")
+    ax2.set_title("Day-Ahead Preise (aggregiert nach Stunden)")
+    st.pyplot(fig2)
 
 else:
     st.info("Bitte lade beide Dateien hoch, um die Analyse zu starten.")

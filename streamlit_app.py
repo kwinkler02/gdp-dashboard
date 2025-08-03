@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from fpdf import FPDF
+import tempfile
+import os
 
 st.set_page_config(page_title="PV Lastgang Analyse", layout="wide")
 st.title("PV Lastgang Wirtschaftlichkeitsanalyse mit Clipping und EEG")
@@ -13,7 +16,7 @@ price_file = st.sidebar.file_uploader("Day-Ahead Preise (€/MWh, Viertelstunden
 
 # --- Parameter-Eingaben ---
 max_power_kw = st.sidebar.number_input("Wechselrichter Maximalleistung (kW)", min_value=0.0, step=0.1)
-eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.0, step=0.1)  # feste Vergütung
+eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.0, step=0.1)
 
 def load_data(uploaded_file):
     if uploaded_file:
@@ -35,21 +38,16 @@ if pv_data is not None and price_data is not None:
     # Umrechnung: 15-Minuten kWh * 4 = kW Leistung
     pv_power_kw = pv_data.iloc[:, 0] * 4
     clipped_power_kw = np.minimum(pv_power_kw, max_power_kw)
-    clipped_energy_kwh = clipped_power_kw / 4  # zurück in kWh
+    clipped_energy_kwh = clipped_power_kw / 4
     lost_energy_kwh = pv_data.iloc[:, 0] - clipped_energy_kwh
 
-    # Day-Ahead Preis in €/MWh -> ct/kWh
     price_ct_per_kwh = price_data.iloc[:, 0] / 10
 
-    # EEG: Feste Vergütung wenn Preis > 0, sonst 0 (keine Einspeisung)
     eeg_paid = np.where(price_ct_per_kwh > 0, clipped_energy_kwh * eeg_ct_per_kwh, 0)
     total_eeg_revenue = np.sum(eeg_paid)
     lost_eeg_revenue = np.sum(lost_energy_kwh * eeg_ct_per_kwh)
-
-    # Häufigkeit der Abregelung durch negative Preise in Stunden
     curtailed_hours = np.sum((pv_data.iloc[:, 0] > 0) & (price_ct_per_kwh < 0).values) / 4
 
-    # Energieverluste durch Clipping (kWh und %)
     total_pv_energy = np.sum(pv_data.iloc[:, 0])
     total_lost_energy = np.sum(lost_energy_kwh)
     total_generated_energy = np.sum(clipped_energy_kwh)
@@ -60,22 +58,28 @@ if pv_data is not None and price_data is not None:
 
     st.markdown("#### Monetäre Auswertung")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Gesamtertrag EEG", f"{total_eeg_revenue / 100:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
-    col2.metric("Verlust durch Clipping", f"{lost_eeg_revenue / 100:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
-    col3.metric("Abregelung wegen negativer Preise", f"{curtailed_hours:,.1f} h".replace(",", "X").replace(".", ",").replace("X", "."))
+    eeg_text = f"{total_eeg_revenue / 100:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+    clipping_loss_text = f"{lost_eeg_revenue / 100:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+    curtailed_hours_text = f"{curtailed_hours:,.1f} h".replace(",", "X").replace(".", ",").replace("X", ".")
+    col1.metric("Gesamtertrag EEG", eeg_text)
+    col2.metric("Verlust durch Clipping", clipping_loss_text)
+    col3.metric("Abregelung wegen negativer Preise", curtailed_hours_text)
 
     st.markdown("#### Energetische Auswertung")
     col4, col5, col6 = st.columns(3)
-    col4.metric("Verlust durch Clipping", f"{total_lost_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", "."))
-    col5.metric("Verlust", f"{lost_energy_pct:,.2f} %".replace(",", "X").replace(".", ",").replace("X", "."))
-    col6.metric("Gesamtertrag", f"{total_generated_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", "."))
+    energy_loss_text = f"{total_lost_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", ".")
+    energy_pct_text = f"{lost_energy_pct:,.2f} %".replace(",", "X").replace(".", ",").replace("X", ".")
+    energy_generated_text = f"{total_generated_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", ".")
+    col4.metric("Verlust durch Clipping", energy_loss_text)
+    col5.metric("Verlust in Prozent", energy_pct_text)
+    col6.metric("Gesamtertrag", energy_generated_text)
 
     # --- Clipping im Zeitverlauf ---
     st.subheader("Clipping-Analyse")
     fig, ax = plt.subplots(figsize=(12, 4))
     clipping_mask = pv_power_kw > max_power_kw
-    ax.bar(pv_power_kw.index, clipped_power_kw, label="Nach Clipping (kW)", color="darkorange", alpha=0.6)
-    ax.bar(pv_power_kw.index[clipping_mask], (pv_power_kw - max_power_kw)[clipping_mask], bottom=max_power_kw, label="Über Clipping-Grenze (kW)", color="red")
+    ax.bar(pv_power_kw.index, clipped_power_kw, label="Nach Clipping", color="darkorange", alpha=0.6)
+    ax.bar(pv_power_kw.index[clipping_mask], (pv_power_kw - max_power_kw)[clipping_mask], bottom=max_power_kw, label="Über Clipping-Grenze", color="red")
     ax.axhline(max_power_kw, color="red", linestyle=":", label="Max. WR-Leistung")
     ax.set_ylabel("Leistung in kW")
     ax.set_title("Clipping im Zeitverlauf")
@@ -104,6 +108,33 @@ if pv_data is not None and price_data is not None:
     ax2.legend()
     ax2.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
     st.pyplot(fig2)
+
+    # --- PDF Export ---
+    if st.button("📄 PDF-Bericht exportieren"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt="Wirtschaftlichkeitsanalyse – PV Clipping", ln=True, align='C')
+            pdf.ln(10)
+
+            pdf.set_font("Arial", style='B', size=11)
+            pdf.cell(200, 10, txt="Monetäre Auswertung:", ln=True)
+            pdf.set_font("Arial", size=11)
+            pdf.cell(200, 8, txt=f"Gesamtertrag EEG: {eeg_text}", ln=True)
+            pdf.cell(200, 8, txt=f"Verlust durch Clipping: {clipping_loss_text}", ln=True)
+            pdf.cell(200, 8, txt=f"Abregelung bei negativen Preisen: {curtailed_hours_text}", ln=True)
+
+            pdf.ln(6)
+            pdf.set_font("Arial", style='B', size=11)
+            pdf.cell(200, 10, txt="Energetische Auswertung:", ln=True)
+            pdf.set_font("Arial", size=11)
+            pdf.cell(200, 8, txt=f"Verlust durch Clipping: {energy_loss_text}", ln=True)
+            pdf.cell(200, 8, txt=f"Verlust in Prozent: {energy_pct_text}", ln=True)
+            pdf.cell(200, 8, txt=f"Gesamtertrag: {energy_generated_text}", ln=True)
+
+            pdf.output(tmpfile.name)
+            st.download_button("Download PDF", data=open(tmpfile.name, "rb"), file_name="PV_Wirtschaftlichkeitsanalyse.pdf")
 
 else:
     st.info("Bitte lade beide Dateien hoch, um die Analyse zu starten.")

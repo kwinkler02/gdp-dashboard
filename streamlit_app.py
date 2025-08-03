@@ -28,8 +28,6 @@ price_data = load_data(price_file)
 
 if pv_data is not None and price_data is not None:
 
-    else:
-        st.info("Keine Viertelstunden mit gleichzeitig negativer Vergütung und Einspeisung gefunden.")
     st.subheader("Datenübersicht")
     st.write("PV Lastgang (kWh pro 15 Minuten):", pv_data.head())
     st.write("Day-Ahead Preise (€/MWh):", price_data.head())

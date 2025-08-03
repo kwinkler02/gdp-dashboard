@@ -60,22 +60,22 @@ if pv_data is not None and price_data is not None:
 
     st.markdown("#### Monetäre Auswertung")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Gesamtertrag EEG in €", f"{total_eeg_revenue / 100:.2f}")
-    col2.metric("Verlust durch Clipping in €", f"{lost_eeg_revenue / 100:.2f}")
-    col3.metric("Abregelung wegen negativer Preise in h", f"{curtailed_hours:.1f}")
+    col1.metric("Gesamtertrag EEG", f"{total_eeg_revenue / 100:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
+    col2.metric("Verlust durch Clipping", f"{lost_eeg_revenue / 100:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
+    col3.metric("Abregelung wegen negativer Preise", f"{curtailed_hours:,.1f} h".replace(",", "X").replace(".", ",").replace("X", "."))
 
     st.markdown("#### Energetische Auswertung")
     col4, col5, col6 = st.columns(3)
-    col4.metric("Verlust durch Clipping in kWh", f"{total_lost_energy:.2f}")
-    col5.metric("Verlust in Prozent", f"{lost_energy_pct:.2f} %")
-    col6.metric("Gesamtertrag in kWh", f"{total_generated_energy:.2f}")
+    col4.metric("Verlust durch Clipping", f"{total_lost_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", "."))
+    col5.metric("Verlust", f"{lost_energy_pct:,.2f} %".replace(",", "X").replace(".", ",").replace("X", "."))
+    col6.metric("Gesamtertrag", f"{total_generated_energy:,.2f} kWh".replace(",", "X").replace(".", ",").replace("X", "."))
 
     # --- Clipping im Zeitverlauf ---
     st.subheader("Clipping-Analyse")
     fig, ax = plt.subplots(figsize=(12, 4))
     clipping_mask = pv_power_kw > max_power_kw
-    ax.bar(pv_power_kw.index, clipped_power_kw, label="Nach Clipping", color="darkorange", alpha=0.6)
-    ax.bar(pv_power_kw.index[clipping_mask], (pv_power_kw - max_power_kw)[clipping_mask], bottom=max_power_kw, label="Über Clipping-Grenze", color="red")
+    ax.bar(pv_power_kw.index, clipped_power_kw, label="Nach Clipping (kW)", color="darkorange", alpha=0.6)
+    ax.bar(pv_power_kw.index[clipping_mask], (pv_power_kw - max_power_kw)[clipping_mask], bottom=max_power_kw, label="Über Clipping-Grenze (kW)", color="red")
     ax.axhline(max_power_kw, color="red", linestyle=":", label="Max. WR-Leistung")
     ax.set_ylabel("Leistung in kW")
     ax.set_title("Clipping im Zeitverlauf")

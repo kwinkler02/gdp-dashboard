@@ -55,19 +55,22 @@ if pv_data is not None and price_data is not None:
     total_generated_energy = np.sum(clipped_energy_kwh)
     lost_energy_pct = (total_lost_energy / total_pv_energy * 100) if total_pv_energy > 0 else 0
 
-    # Ausgabe
+    # --- Wirtschaftlichkeitsanalyse ---
     st.subheader("Wirtschaftlichkeitsanalyse")
+
+    st.markdown("#### Monetäre Auswertung")
     col1, col2, col3 = st.columns(3)
     col1.metric("Gesamtertrag (EEG) [€]", f"{total_eeg_revenue / 100:.2f}")
     col2.metric("Verlust durch Clipping [€]", f"{lost_eeg_revenue / 100:.2f}")
     col3.metric("Abregelung wegen negativer Preise [h]", f"{curtailed_hours:.1f}")
 
+    st.markdown("#### Energetische Auswertung")
     col4, col5, col6 = st.columns(3)
     col4.metric("Verlust durch Clipping [kWh]", f"{total_lost_energy:.2f}")
     col5.metric("Verlust in Prozent [%]", f"{lost_energy_pct:.2f}")
     col6.metric("Gesamtertrag (kWh)", f"{total_generated_energy:.2f}")
 
-    # Visualisierung
+    # --- Clipping im Zeitverlauf ---
     st.subheader("Clipping-Analyse")
     fig, ax = plt.subplots(figsize=(12, 4))
     clipping_mask = pv_power_kw > max_power_kw
@@ -80,6 +83,7 @@ if pv_data is not None and price_data is not None:
     ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
     st.pyplot(fig)
 
+    # --- Clipping Verluste ---
     st.subheader("Verlorene Energie durch Clipping")
     monthly_losses = lost_energy_kwh.resample("M").sum()
     fig3, ax3 = plt.subplots(figsize=(12, 4))
@@ -89,6 +93,7 @@ if pv_data is not None and price_data is not None:
     ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
     st.pyplot(fig3)
 
+    # --- Day-Ahead Preise ---
     st.subheader("Day-Ahead Preisverlauf")
     fig2, ax2 = plt.subplots(figsize=(12, 4))
     ax2.plot(price_ct_per_kwh.index, price_ct_per_kwh.where(price_ct_per_kwh >= 0), color="orange", label="Preis ≥ 0 ct/kWh")

@@ -28,7 +28,8 @@ price_data = load_data(price_file)
 
 if pv_data is not None and price_data is not None:
     st.subheader("Analyse der negativen Preise je Viertelstunde")
-    negative_price_mask = (pv_data.iloc[:, 0] > 0) & (price_ct_per_kwh < 0).values
+    price_ct_per_kwh = price_data.iloc[:, 0] / 10  # Sicherstellen, dass Variable vorher definiert ist
+    negative_price_mask = (pv_data.iloc[:, 0] > 0) & (price_data.iloc[:, 0] < 0)
     negative_price_times = price_ct_per_kwh[negative_price_mask]
     if not negative_price_times.empty:
         fig_neg, ax_neg = plt.subplots(figsize=(12, 3))

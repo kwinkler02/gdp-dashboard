@@ -46,7 +46,7 @@ if pv_data is not None and price_data is not None:
     lost_eeg_revenue = np.sum(lost_energy_kwh * eeg_ct_per_kwh)
 
     # Häufigkeit der Abregelung durch negative Preise in Stunden
-    curtailed_hours = np.sum((pv_data.iloc[:, 0] > 0) & (price_ct_per_kwh < 0)) / 4
+    curtailed_hours = np.sum((pv_data.iloc[:, 0] > 0) & (price_ct_per_kwh < 0).values) / 4
 
     # Energieverluste durch Clipping (kWh und %)
     total_pv_energy = np.sum(pv_data.iloc[:, 0])

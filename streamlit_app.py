@@ -127,13 +127,9 @@ if pv_data is not None and price_data is not None:
             # Monetäre Auswertung
             fig_monetary, axm = plt.subplots(figsize=(8.27, 5))
             axm.axis('off')
-            text = (
-                f"Gesamtertrag EEG: {eeg_text}
-"
-                f"Verlust durch Clipping: {clipping_loss_text}
-"
-                f"Abregelung bei negativen Preisen: {curtailed_hours_text}"
-            )
+            text = f"""Gesamtertrag EEG: {eeg_text}
+Verlust durch Clipping: {clipping_loss_text}
+Abregelung bei negativen Preisen: {curtailed_hours_text}"""
             axm.text(0.1, 0.5, text, fontsize=12, va='center')
             pdf.savefig(fig_monetary)
             plt.close(fig_monetary)

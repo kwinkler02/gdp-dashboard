@@ -51,6 +51,7 @@ if pv_data is not None and price_data is not None:
     # Energieverluste durch Clipping (kWh und %)
     total_pv_energy = np.sum(pv_data.iloc[:, 0])
     total_lost_energy = np.sum(lost_energy_kwh)
+    total_generated_energy = np.sum(clipped_energy_kwh)
     lost_energy_pct = (total_lost_energy / total_pv_energy * 100) if total_pv_energy > 0 else 0
 
     # Ausgabe
@@ -60,9 +61,10 @@ if pv_data is not None and price_data is not None:
     col2.metric("Verlust durch Clipping [€]", f"{lost_eeg_revenue / 100:.2f}")
     col3.metric("Abregelung wegen negativer Preise [h]", f"{curtailed_hours:.1f}")
 
-    col4, col5 = st.columns(2)
+    col4, col5, col6 = st.columns(3)
     col4.metric("Verlust durch Clipping [kWh]", f"{total_lost_energy:.2f}")
     col5.metric("Verlust in Prozent [%]", f"{lost_energy_pct:.2f}")
+    col6.metric("Gesamtertrag (kWh)", f"{total_generated_energy:.2f}")
 
     # Visualisierung
     st.subheader("Clipping-Analyse")

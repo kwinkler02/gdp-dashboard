@@ -72,6 +72,16 @@ if pv_data is not None and price_data is not None:
     col5.metric("Verlust in Prozent", energy_pct_text)
     col6.metric("Gesamtertrag", energy_generated_text)
 
+        # --- Clipping-Analyse (Grafiken) ---
+    st.subheader("Clipping-Analyse Visualisierung")
+    st.pyplot(fig)
+
+    st.subheader("Verlorene Energie durch Clipping")
+    st.pyplot(fig3)
+
+    st.subheader("Day-Ahead Preisverlauf")
+    st.pyplot(fig2)
+
     # --- PDF Export ---
     if st.button("📄 PDF-Bericht exportieren"):
         from matplotlib.backends.backend_pdf import PdfPages

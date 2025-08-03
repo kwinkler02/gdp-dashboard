@@ -109,7 +109,55 @@ if pv_data is not None and price_data is not None:
     st.pyplot(fig2)
 
     # --- PDF Export ---
-    if st.button("📄 PDF-Bericht exportieren"):("📄 PDF-Bericht exportieren"):
+        # --- Clipping-Analyse Visualisierung ---
+    st.subheader("Clipping-Analyse Visualisierung")
+    st.pyplot(fig)
+    st.subheader("Verlorene Energie durch Clipping")
+    st.pyplot(fig3)
+    st.subheader("Day-Ahead Preisverlauf")
+    st.pyplot(fig2)
+
+    # --- PDF Export ---
+    if st.button("📄 PDF-Bericht exportieren"):
+        from matplotlib.backends.backend_pdf import PdfPages
+        from io import BytesIO
+        pdf_buffer = BytesIO()
+        with PdfPages(pdf_buffer) as pdf:
+            # Deckblatt
+            fig_cover = plt.figure(figsize=(8.27, 11.69))
+            fig_cover.clf()
+            fig_cover.text(0.5, 0.75, 'Wirtschaftlichkeitsanalyse – PV Clipping', ha='center', va='center', fontsize=20)
+            fig_cover.text(0.5, 0.7, 'Erstellt: ' + pd.Timestamp.now().strftime('%d.%m.%Y'), ha='center', va='center', fontsize=12)
+            pdf.savefig(fig_cover)
+            plt.close(fig_cover)
+
+            # Monetäre Auswertung
+            fig_monetary, axm = plt.subplots(figsize=(8.27, 5))
+            axm.axis('off')
+            text = f"""Gesamtertrag EEG: {eeg_text}
+Verlust durch Clipping: {clipping_loss_text}
+Abregelung bei negativen Preisen: {curtailed_hours_text}"""
+            axm.text(0.1, 0.5, text, fontsize=12, va='center')
+            pdf.savefig(fig_monetary)
+            plt.close(fig_monetary)
+
+            # Energetische Auswertung
+            fig_energy, axe = plt.subplots(figsize=(8.27, 5))
+            axe.axis('off')
+            text2 = f"""Verlust durch Clipping: {energy_loss_text}
+Verlust in Prozent: {energy_pct_text}
+Gesamtertrag: {energy_generated_text}"""
+            axe.text(0.1, 0.5, text2, fontsize=12, va='center')
+            pdf.savefig(fig_energy)
+            plt.close(fig_energy)
+
+            # Charts
+            pdf.savefig(fig)  # Clipping Zeitverlauf
+            pdf.savefig(fig3) # Clipping Verluste
+            pdf.savefig(fig2) # Day-Ahead Preise
+
+        pdf_buffer.seek(0)
+        st.download_button("Download PDF", data=pdf_buffer, file_name="PV_Wirtschaftlichkeitsanalyse.pdf", mime='application/pdf')
         from matplotlib.backends.backend_pdf import PdfPages
         from io import BytesIO
         pdf_buffer = BytesIO()

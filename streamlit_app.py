@@ -104,8 +104,10 @@ if pv_data is not None and price_data is not None:
     st.subheader("Day-Ahead Preisverlauf (ct/kWh, stündlich aggregiert)")
     hourly_prices = price_ct_per_kwh.resample("H").mean()
     fig2, ax2 = plt.subplots(figsize=(12, 4))
-    ax2.plot(hourly_prices.index, hourly_prices, label="Preis ≥ 0 ct/kWh", color="orange")
-    ax2.fill_between(hourly_prices.index, hourly_prices, where=hourly_prices < 0, color='red', label="Preis < 0 ct/kWh", alpha=0.4)
+    ax2.plot(hourly_prices.index, hourly_prices, color="orange", label="Preis ≥ 0 ct/kWh")
+    ax2.plot(hourly_prices[hourly_prices < 0].index,
+             hourly_prices[hourly_prices < 0],
+             color="red", label="Preis < 0 ct/kWh")
     ax2.set_ylabel("Preis [ct/kWh]")
     ax2.set_title("Day-Ahead Preise (aggregiert nach Stunden, negativ hervorgehoben)")
     ax2.axhline(0, color='black', linestyle='--', linewidth=1, label="Null-Linie")

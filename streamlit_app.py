@@ -63,7 +63,7 @@ if pv_data is not None and price_data is not None:
     curtailed_hours_text = f"{curtailed_hours:,.1f} h".replace(",", "X").replace(".", ",").replace("X", ".")
     col1.metric("Gesamtertrag EEG", eeg_text)
     col2.metric("Verlust durch Clipping", clipping_loss_text)
-    col3.metric("Abregelung wegen negativer Preise", curtailed_hours_text)("Abregelung wegen negativer Preise", curtailed_hours_text)
+    col3.metric("Abregelung wegen negativer Preise", curtailed_hours_text)
 
         st.markdown("#### Energetische Auswertung")
     col4, col5, col6 = st.columns(3)

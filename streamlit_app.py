@@ -70,20 +70,21 @@ if pv_data is not None and price_data is not None:
     # Visualisierung
     st.subheader("Clipping-Analyse")
     fig, ax = plt.subplots(figsize=(12, 4))
-    ax.plot(pv_power_kw.index, pv_power_kw, label="Original Leistung (kW)", alpha=0.6)
-    ax.plot(pv_power_kw.index, clipped_power_kw, label="Nach Clipping (kW)", linestyle="--")
+    clipping_mask = pv_power_kw > max_power_kw
+    ax.bar(pv_power_kw.index[clipping_mask], (pv_power_kw - max_power_kw)[clipping_mask], label="Über Clipping-Grenze (kW)", color="skyblue")
+    ax.bar(pv_power_kw.index, clipped_power_kw, label="Nach Clipping (kW)", color="darkorange", alpha=0.6)
     ax.axhline(max_power_kw, color="red", linestyle=":", label="Max. WR-Leistung")
     ax.set_ylabel("Leistung [kW]")
     ax.set_title("Clipping im Zeitverlauf")
     ax.legend()
     st.pyplot(fig)
 
-    st.subheader("Verlorene Energie durch Clipping (Viertelstundenbasis, nicht aggregiert)")
+    st.subheader("Verlorene Energie durch Clipping (monatlich aggregiert)")
+    monthly_losses = lost_energy_kwh.resample("M").sum()
     fig3, ax3 = plt.subplots(figsize=(12, 4))
-    ax3.bar(lost_energy_kwh.index, lost_energy_kwh.values, width=0.01, color="salmon")
+    ax3.bar(monthly_losses.index, monthly_losses.values, width=20, color="salmon")
     ax3.set_ylabel("Verlust [kWh]")
-    ax3.set_title("Clipping-Verluste im Zeitverlauf (15-Minuten-Auflösung)")
-    ax3.xaxis.set_major_locator(plt.MaxNLocator(12))
+    ax3.set_title("Clipping-Verluste pro Monat")
     fig3.autofmt_xdate()
     st.pyplot(fig3)
 

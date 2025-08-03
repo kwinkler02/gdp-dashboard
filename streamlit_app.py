@@ -77,8 +77,15 @@ if pv_data is not None and price_data is not None:
     ax.legend()
     st.pyplot(fig)
 
-    st.subheader("Verlorene Energie durch Clipping")
-    st.line_chart(lost_energy_kwh, use_container_width=True)
+    st.subheader("Verlorene Energie durch Clipping (stündlich, nicht aggregiert)")
+    hourly_lost_power_kw = lost_energy_kwh * 4
+    fig3, ax3 = plt.subplots(figsize=(12, 4))
+    ax3.bar(hourly_lost_power_kw.index, hourly_lost_power_kw.values, width=0.02, color="salmon")
+    ax3.set_ylabel("Verlustleistung [kW]")
+    ax3.set_title("Clipping-Verlustleistung im Zeitverlauf (Stundenbasis, X-Achse mit Monatslabel)")
+    ax3.xaxis.set_major_locator(plt.MaxNLocator(12))
+    fig3.autofmt_xdate()
+    st.pyplot(fig3)
 
     st.subheader("Day-Ahead Preisverlauf (ct/kWh, stündlich aggregiert)")
     hourly_prices = price_ct_per_kwh.resample("H").mean()

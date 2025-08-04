@@ -20,16 +20,34 @@ eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.
 
 # Hilfsfunktion zum Laden der Zeitreihen
 @st.cache_data
-def load_data(file):
+def load_data(file, default_year=None):
     if file is None:
         return None
+    # Einlesen und erste Spalte als Index
     if file.name.endswith('.csv'):
-        df = pd.read_csv(file, index_col=0, parse_dates=True)
+        df = pd.read_csv(file, index_col=0)
     else:
-        df = pd.read_excel(file, index_col=0, parse_dates=True)
+        df = pd.read_excel(file, index_col=0)
+    # Index: versuchen zu datetime zu konvertieren
+    idx = df.index.astype(str)
+    # Füge Jahr hinzu, falls nicht vorhanden (z.B. 'DD.MM HH:MM')
+    # Ersetze Varianten mit oder ohne Jahr
+    sample = idx[0]
+    if sample.count('.') == 1:
+        year = default_year or pd.Timestamp.now().year
+        idx = idx + f'.{year}'
+        df.index = pd.to_datetime(idx, dayfirst=True, format='%d.%m.%Y %H:%M')
+    else:
+        # Standard-Pandasto_datetime mit Tag.Monat.Jahr optional
+        df.index = pd.to_datetime(idx, dayfirst=True, infer_datetime_format=True)
     return df
 
 # Daten laden
+current_year = pd.Timestamp.now().year
+pv_data = load_data(pv_file, default_year=current_year)
+price_data = load_data(price_file, default_year=current_year)
+
+# ... verbleibender Code unverändert folgt ab hier # Daten laden
 pv_data = load_data(pv_file)
 price_data = load_data(price_file)
 

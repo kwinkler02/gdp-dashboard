@@ -17,26 +17,25 @@ price_file = st.sidebar.file_uploader("Day-Ahead Preise (Zeitstempel + €/MWh)"
 # --- Parameter ---
 max_power_kw = st.sidebar.number_input("Wechselrichter Maximalleistung (kW)", min_value=0.0, step=0.1)
 eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.0, step=0.1)
-# Falls Zeitstempel ohne Jahr vorliegen, Jahresangabe (z.B. "2025")
-jahr = st.sidebar.number_input("Jahr der Daten", value=pd.Timestamp.now().year, step=1)
 
 # --- Daten laden und verarbeiten ---
 def load_series(file):
     if file:
-        # Einlesen ohne Index-Zuweisung, Header automatisch ausgeklammert
+        # Einlesen der ersten beiden Spalten
         if file.name.endswith('.csv'):
-            df = pd.read_csv(file, usecols=[0,1])
+            df = pd.read_csv(file, usecols=[0,1], header=0)
         else:
-            df = pd.read_excel(file, usecols=[0,1])
-        # Erste Spalte als Datum, zweite Spalte als Werte
-        # Ungültige Datumswerte werden zu NaT konvertiert
+            df = pd.read_excel(file, usecols=[0,1], header=0)
+        # Zeitstempel parsen
         df.iloc[:,0] = pd.to_datetime(df.iloc[:,0], errors='coerce')
-        # Zeilen ohne gültigen Zeitstempel entfernen
         df = df.dropna(subset=[df.columns[0]])
-        # Series erzeugen
         series = pd.Series(df.iloc[:,1].values, index=df.iloc[:,0])
+        # Sicherstellen datetime Index und sortieren
+        series.index = pd.to_datetime(series.index)
+        series = series.sort_index()
         series.index.name = None
         return series
+    return None
     return None
     return None
 
@@ -103,7 +102,8 @@ if pv_kwh is not None and price_mwh is not None:
     ax1.legend()
 
     fig2, ax2 = plt.subplots(figsize=(10,4))
-    monthly_losses = lost_kwh.groupby(pd.Grouper(freq='M')).sum()
+            # Monatliche Aggregation
+        monthly_losses = lost_kwh.resample('M').sum()
     ax2.bar(monthly_losses.index, monthly_losses.values, width=20, color='salmon')
     ax2.set_title('Clipping-Verluste pro Monat')
     ax2.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))

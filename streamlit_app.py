@@ -22,7 +22,8 @@ def load_series(file):
     if file:
         # Einlesen der ersten beiden Spalten
         if file.name.lower().endswith('.csv'):
-            df = pd.read_csv(file, usecols=[0,1], header=0, sep=';', decimal=',')
+            # CSV: Standard Trennzeichen autodetect
+            df = pd.read_csv(file, usecols=[0,1], header=0)
         else:
             df = pd.read_excel(file, usecols=[0,1], header=0)
         # Zeitstempel parsen

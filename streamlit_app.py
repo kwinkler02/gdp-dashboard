@@ -48,12 +48,13 @@ if pv_kwh is None or price_mwh is None:
     st.stop()
 
 # Umrechnung und Clipping
-pv_kw = pv_kwh * 4  # kW-Leistung aus kWh/15min
-clipped_kw = np.minimum(pv_kw, max_power_kw)
-clipped_kwh = clipped_kw / 4  # kWh nach Clipping
-lost_kwh = pv_kwh - clipped_kwh
+    # pv_kw ist Series -> behalten Series-Index
+    pv_kw = pv_kwh * 4  # kW-Leistung aus kWh/15min
+    clipped_kw = pd.Series(np.minimum(pv_kw.values, max_power_kw), index=pv_kw.index)
+    clipped_kwh = clipped_kw / 4  # kWh nach Clipping als Series
+    lost_kwh = pv_kwh - clipped_kwh  # Series subtraction
 
-# Day-Ahead Preis synchronisieren
+    # Day-Ahead Preis synchronisieren
 price_ct = price_mwh.reindex(pv_kw.index).fillna(0) / 10  # ct/kWh
 
 # EEG-Einnahmen (bei Preis ≥ 0)

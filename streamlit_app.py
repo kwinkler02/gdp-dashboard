@@ -89,15 +89,12 @@ if pv_kwh is not None and price_mwh is not None:
     ax1.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
     ax1.legend()
 
-    # 2) Clipping-Verluste pro Monat
-    fig2, ax2 = plt.subplots(figsize=(10,4))
+        # 2) Clipping-Verluste pro Monat
+    # Sicherstellen DatetimeIndex für Resampling
+    lost_kwh.index = pd.to_datetime(lost_kwh.index)
     monthly_losses = lost_kwh.resample('M').sum()
-    ax2.bar(monthly_losses.index, monthly_losses.values, width=20, color='salmon')
-    ax2.set_title('Clipping-Verluste pro Monat')
-    ax2.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
-
-    # 3) Day-Ahead Preise
-    fig3, ax3 = plt.subplots(figsize=(10,4))
+    fig2, ax2 = plt.subplots(figsize=(10,4))
+(figsize=(10,4))
     ax3.plot(price_ct.index, price_ct.where(price_ct >= 0), color='orange', label='Preis ≥ 0')
     ax3.plot(price_ct.index, price_ct.where(price_ct < 0), color='red', label='Preis < 0')
     ax3.axhline(0, linestyle='--', color='black')

@@ -17,6 +17,8 @@ price_file = st.sidebar.file_uploader("Day-Ahead Preise (Zeitstempel + €/MWh)"
 # --- Parameter ---
 max_power_kw = st.sidebar.number_input("Wechselrichter Maximalleistung (kW)", min_value=0.0, step=0.1)
 eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.0, step=0.1)
+# Falls Zeitstempel ohne Jahr vorliegen, Jahresangabe (z.B. "2025")
+jahr = st.sidebar.number_input("Jahr der Daten", value=pd.Timestamp.now().year, step=1)
 
 # --- Daten laden und verarbeiten ---
 def load_series(file):
@@ -101,7 +103,7 @@ if pv_kwh is not None and price_mwh is not None:
     ax1.legend()
 
     fig2, ax2 = plt.subplots(figsize=(10,4))
-    monthly_losses = lost_kwh.resample('M').sum()
+    monthly_losses = lost_kwh.groupby(pd.Grouper(freq='M')).sum()
     ax2.bar(monthly_losses.index, monthly_losses.values, width=20, color='salmon')
     ax2.set_title('Clipping-Verluste pro Monat')
     ax2.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))

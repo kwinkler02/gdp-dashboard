@@ -21,16 +21,21 @@ eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.
 # --- Daten laden und verarbeiten ---
 def load_series(file):
     if file:
-        # Einlesen ohne Index, Header automatisch
+        # Einlesen ohne Index-Zuweisung, Header automatisch ausgeklammert
         if file.name.endswith('.csv'):
-            df = pd.read_csv(file)
+            df = pd.read_csv(file, usecols=[0,1])
         else:
-            df = pd.read_excel(file)
+            df = pd.read_excel(file, usecols=[0,1])
         # Erste Spalte als Datum, zweite Spalte als Werte
-        df.iloc[:,0] = pd.to_datetime(df.iloc[:,0])
+        # Ungültige Datumswerte werden zu NaT konvertiert
+        df.iloc[:,0] = pd.to_datetime(df.iloc[:,0], errors='coerce')
+        # Zeilen ohne gültigen Zeitstempel entfernen
+        df = df.dropna(subset=[df.columns[0]])
+        # Series erzeugen
         series = pd.Series(df.iloc[:,1].values, index=df.iloc[:,0])
         series.index.name = None
         return series
+    return None
     return None
 
 pv_kwh = load_series(pv_file)  # kWh pro 15min

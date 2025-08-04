@@ -35,48 +35,82 @@ def load_series(file):
         ts = df.iloc[:, 0].astype(str)
         vals = df.iloc[:, 1]
         
-        # Konvertiere Datumsstrings flexibler
-        current_year = pd.Timestamp.now().year
-        parsed = []
+        # Konvertiere Datumsstrings - VEREINHEITLICHE AUF 2025
+        target_year = 2025  # Festes Jahr für Konsistenz
+        parsed_timestamps = []
         
-        for s in ts:
+        for i, s in enumerate(ts):
             try:
-                # Verschiedene Formate versuchen
-                if 'NaN' in s or 'nan' in s or s == 'nan':
+                # Skip NaN values
+                if pd.isna(s) or 'NaN' in str(s) or 'nan' in str(s):
                     continue
-                    
-                # Format: "01.01. 00:00" oder "01.01.2025 00:00"
-                if ' ' in s:
-                    date_part, time_part = s.split(' ', 1)
+                
+                s = str(s).strip()
+                
+                # Verschiedene Parsing-Strategien
+                parsed_dt = None
+                
+                # Strategie 1: Pandas auto-parsing
+                try:
+                    parsed_dt = pd.to_datetime(s, dayfirst=True)
+                    # Falls Jahr nicht 2025, ersetze es
+                    if parsed_dt.year != target_year:
+                        parsed_dt = parsed_dt.replace(year=target_year)
+                except:
+                    pass
+                
+                # Strategie 2: Manuelles Parsing für "01.01. 00:00" Format
+                if parsed_dt is None and ' ' in s:
+                    try:
+                        date_part, time_part = s.split(' ', 1)
+                        if date_part.endswith('.'):
+                            # "01.01." -> "01.01.2025"
+                            day, month = date_part[:-1].split('.')
+                            full_date_str = f"{day}.{month}.{target_year} {time_part}"
+                            parsed_dt = pd.to_datetime(full_date_str, format='%d.%m.%Y %H:%M')
+                    except:
+                        pass
+                
+                # Strategie 3: Nur Datum ohne Zeit
+                if parsed_dt is None:
+                    try:
+                        if '.' in s and ':' not in s:
+                            parts = s.split('.')
+                            if len(parts) >= 2:
+                                day, month = parts[0], parts[1]
+                                full_date_str = f"{day}.{month}.{target_year} 00:00"
+                                parsed_dt = pd.to_datetime(full_date_str, format='%d.%m.%Y %H:%M')
+                    except:
+                        pass
+                
+                if parsed_dt is not None:
+                    parsed_timestamps.append(parsed_dt)
                 else:
-                    date_part, time_part = s, '00:00'
-                
-                # Datum parsen
-                if date_part.endswith('.'):
-                    # Format: "01.01."
-                    date_part = date_part[:-1] + f".{current_year}"
-                elif date_part.count('.') == 1:
-                    # Format: "01.01"
-                    date_part = date_part + f".{current_year}"
-                
-                # Vollständigen Zeitstempel erstellen
-                full_timestamp = f"{date_part} {time_part}"
-                parsed.append(full_timestamp)
-                
+                    st.warning(f"Konnte Zeitstempel nicht parsen: '{s}' (Zeile {i+2})")
+                    
             except Exception as e:
-                st.warning(f"Fehler beim Parsen von Zeitstempel '{s}': {e}")
+                st.warning(f"Fehler beim Parsen von Zeitstempel '{s}' (Zeile {i+2}): {e}")
                 continue
         
-        # Parse timestamps
-        dates = pd.to_datetime(parsed, format='%d.%m.%Y %H:%M', errors='coerce')
+        if len(parsed_timestamps) == 0:
+            st.error("Keine gültigen Zeitstempel gefunden!")
+            return None
         
-        # Entferne NaT Werte
-        valid_mask = ~dates.isna()
-        dates = dates[valid_mask]
-        vals = vals[valid_mask]
-        
-        series = pd.Series(vals.values, index=dates)
+        # Series erstellen mit gültigen Zeitstempeln
+        valid_vals = vals.iloc[:len(parsed_timestamps)]
+        series = pd.Series(valid_vals.values, index=parsed_timestamps)
         series.name = vals.name or 'value'
+        
+        # Sortiere nach Zeitstempel
+        series = series.sort_index()
+        
+        # Debug-Info
+        with st.expander(f"Debug: {file.name}", expanded=False):
+            st.write(f"Zeitspanne: {series.index.min()} bis {series.index.max()}")
+            st.write(f"Erste 3 Zeitstempel: {series.index[:3].tolist()}")
+            st.write(f"Letzte 3 Zeitstempel: {series.index[-3:].tolist()}")
+            st.write(f"Anzahl Datenpunkte: {len(series)}")
+        
         return series
         
     except Exception as e:
@@ -106,14 +140,49 @@ def calculate_economics(pv_series, price_series, eeg_ct_per_kwh):
     if pv_series is None or price_series is None:
         return None
     
-    # Zeitreihen synchronisieren
-    common_index = pv_series.index.intersection(price_series.index)
-    if len(common_index) == 0:
-        st.error("Keine übereinstimmenden Zeitstempel zwischen PV und Preisdaten gefunden!")
-        return None
+    with st.expander("Debug: Zeitreihen-Synchronisation", expanded=False):
+        st.write("PV Zeitspanne:", pv_series.index.min(), "bis", pv_series.index.max())
+        st.write("Preis Zeitspanne:", price_series.index.min(), "bis", price_series.index.max())
+        st.write("PV Datenpunkte:", len(pv_series))
+        st.write("Preis Datenpunkte:", len(price_series))
     
-    pv_aligned = pv_series.reindex(common_index, fill_value=0)
-    prices_aligned = price_series.reindex(common_index, fill_value=0)
+    # Erweiterte Zeitreihen-Synchronisation mit Toleranz
+    common_index = pv_series.index.intersection(price_series.index)
+    
+    st.write(f"✅ Direkte Zeitstempel-Übereinstimmungen: {len(common_index)}")
+    
+    if len(common_index) == 0:
+        # Versuche Nearest-Neighbor Matching mit 15min Toleranz
+        st.info("🔄 Keine exakten Übereinstimmungen - versuche intelligentes Matching...")
+        
+        # Reindex mit nearest method und 15min Toleranz
+        try:
+            prices_reindexed = price_series.reindex(pv_series.index, method='nearest', tolerance=pd.Timedelta('15 minutes'))
+            
+            # Entferne NaN Werte
+            valid_mask = ~prices_reindexed.isna() & ~pv_series.isna()
+            
+            if valid_mask.sum() == 0:
+                st.error("❌ Auch mit 15-Minuten-Toleranz keine passenden Zeitstempel gefunden!")
+                with st.expander("Zeitstempel-Vergleich", expanded=True):
+                    st.write("**PV erste 10 Zeitstempel:**")
+                    st.write(pv_series.index[:10].tolist())
+                    st.write("**Preis erste 10 Zeitstempel:**")
+                    st.write(price_series.index[:10].tolist())
+                return None
+            
+            pv_aligned = pv_series[valid_mask]
+            prices_aligned = prices_reindexed[valid_mask]
+            
+            st.success(f"✅ Matching erfolgreich: {len(pv_aligned)} Datenpunkte synchronisiert (von {len(pv_series)} PV-Punkten)")
+            
+        except Exception as e:
+            st.error(f"❌ Fehler beim Nearest-Neighbor Matching: {e}")
+            return None
+    else:
+        pv_aligned = pv_series.reindex(common_index, fill_value=0)
+        prices_aligned = price_series.reindex(common_index, fill_value=0)
+        st.success(f"✅ Perfekte Zeitstempel-Übereinstimmung: {len(common_index)} Datenpunkte")
     
     # Preise von €/MWh zu ct/kWh
     prices_ct_per_kwh = prices_aligned / 10

@@ -49,7 +49,8 @@ def load_series(file):
         new_date = '.'.join(d) + ' ' + time_str
         parsed.append(new_date)
     # Einheitliches Format: %d.%m.%Y %H:%M
-    dates = pd.to_datetime(parsed, format='%d.%m.%Y %H:%M', dayfirst=True)
+    # Parse timestamps flexibel ohne festes Format
+dates = pd.to_datetime(parsed, dayfirst=True, infer_datetime_format=True)
     series = pd.Series(vals.values, index=dates)
     series.name = vals.name or 'value'
     return series

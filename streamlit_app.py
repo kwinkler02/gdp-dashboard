@@ -1,49 +1,26 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from io import BytesIO
-from matplotlib.backends.backend_pdf import PdfPages
-
-# App configuration
-st.set_page_config(page_title="PV Lastgang Analyse", layout="wide")
-st.title("PV Lastgang Wirtschaftlichkeitsanalyse mit Clipping und EEG")
-
-# Sidebar: Upload & parameters
-st.sidebar.header("Daten & Einstellungen")
-pv_file = st.sidebar.file_uploader("PV Lastgang (Viertelstundenwerte in kWh)", type=["csv", "xlsx"])
-price_file = st.sidebar.file_uploader("Day-Ahead Preise (€/MWh, Viertelstundenwerte)", type=["csv", "xlsx"])
-
-max_power_kw = st.sidebar.number_input("Wechselrichter Maximalleistung (kW)", min_value=0.0, step=0.1)
-eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.0, step=0.1)
-
-@st.cache_data
 def load_series(file):
     """
     Load a two-column time series (timestamp, value) with multiple formats.
-    Supports both 'DD.MM HH:MM' and 'DD.MM.YYYY HH:MM'.
+    Supports both 'DD.MM HH:MM', 'DD.MM.YYYY HH:MM' and 'DD.MM.YY HH:MM'.
     Normalizes all dates to a common year, skips invalid entries.
     """
     if file is None:
         return None
-    # Read file, no index parsing
     try:
         df = pd.read_csv(file) if file.name.endswith('.csv') else pd.read_excel(file)
     except Exception as e:
         st.error(f"Datei konnte nicht geladen werden: {e}")
         return None
-    # Raw columns
     ts_raw = df.iloc[:, 0].astype(str)
     vals = pd.to_numeric(df.iloc[:, 1], errors='coerce')
-    # Build datetime list
     now_year = pd.Timestamp.now().year
     timestamps = []
     for s in ts_raw:
         parsed = None
-        for fmt in ["%d.%m.%Y %H:%M", "%d.%m %H:%M"]:
+        for fmt in ["%d.%m.%Y %H:%M", "%d.%m.%y %H:%M", "%d.%m %H:%M"]:
             try:
-                # if missing year, append
                 if fmt == "%d.%m %H:%M":
+                    # prepend current year if missing
                     s2 = f"{s} {now_year}" if s.count('.') == 1 else s
                     parsed = pd.to_datetime(s2, format="%d.%m %H:%M %Y", dayfirst=True)
                 else:
@@ -53,9 +30,6 @@ def load_series(file):
                 continue
         if parsed is not None:
             timestamps.append(parsed)
-        else:
-            # skip invalid
-            continue
     if not timestamps:
         st.error("Keine gültigen Zeitstempel gefunden.")
         return None
@@ -169,3 +143,4 @@ else:
                 pdf.savefig(f)
         buf.seek(0)
         st.download_button('Download PDF', data=buf, file_name='PV_Analyse.pdf', mime='application/pdf')
+```

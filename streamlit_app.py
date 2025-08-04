@@ -27,6 +27,11 @@ def load_data(file):
     return None
 
 pv_data = load_data(pv_file)
+    if pv_data is not None:
+        pv_data.index = pd.to_datetime(pv_data.index)
+price_data = load_data(price_file)
+    if price_data is not None:
+        price_data.index = pd.to_datetime(price_data.index)
 price_data = load_data(price_file)
 
 if pv_data is not None and price_data is not None:

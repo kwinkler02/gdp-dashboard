@@ -23,24 +23,38 @@ eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.
 def load_series(file):
     if file is None:
         return None
-    # Einlesen
+    # Einlesen der Rohdaten
     if file.name.endswith('.csv'):
         df = pd.read_csv(file, header=0)
     else:
         df = pd.read_excel(file, header=0)
-    # Spalten: erste Timestamp, zweite Wert
+    # Erste Spalte als Timestamp-Strings, zweite Spalte als Werte
     ts = df.iloc[:, 0].astype(str)
     vals = df.iloc[:, 1]
-    # Prüfen: enthalten die Strings Jahresangabe?
+    # Beispielwert prüfen auf Datumsformat
     sample = ts.iloc[0]
-    # Wenn nur ein Punkt (z.B. 'DD.MM HH:MM') -> Jahr ergänzen
-    if sample.count('.') == 1:
+    # Aufteilen in Datum und Uhrzeit
+    parts = sample.split(' ')
+    date_str = parts[0]
+    time_str = parts[1] if len(parts) > 1 else ''
+    date_parts = date_str.split('.')
+    # Fall 1: nur Tag und Monat (z.B. 'DD.MM')
+    if len(date_parts) == 2:
         year = pd.Timestamp.now().year
-        ts = ts + f'.{year}'
-        dates = pd.to_datetime(ts, format='%d.%m.%Y %H:%M', dayfirst=True)
+        new_ts = ts + f'.{year}'
+        fmt = '%d.%m.%Y %H:%M'
+    # Fall 2: zweistelliges Jahr (z.B. 'DD.MM.YY')
+    elif len(date_parts) == 3 and len(date_parts[2]) == 2:
+        new_ts = ts
+        fmt = '%d.%m.%y %H:%M'
     else:
-        # Standard-Pandas
-        dates = pd.to_datetime(ts, dayfirst=True, infer_datetime_format=True)
+        new_ts = ts
+        fmt = None
+    # Parsen der Zeitstempel
+    if fmt:
+        dates = pd.to_datetime(new_ts, format=fmt, dayfirst=True)
+    else:
+        dates = pd.to_datetime(new_ts, dayfirst=True, infer_datetime_format=True)
     series = pd.Series(vals.values, index=dates)
     series.name = vals.name or 'value'
     return series

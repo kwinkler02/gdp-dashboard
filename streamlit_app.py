@@ -6,128 +6,152 @@ from matplotlib.backends.backend_pdf import PdfPages
 from io import BytesIO
 
 # App-Konfiguration
-st.set_page_config(page_title="PV Clipping Dashboard", layout="wide")
+st.set_page_config(page_title="PV Lastgang Analyse", layout="wide")
 st.title("PV Lastgang Wirtschaftlichkeitsanalyse mit Clipping und EEG")
 
 # Sidebar: Daten-Upload und Parameter
 st.sidebar.header("Daten & Einstellungen")
-pv_file = st.sidebar.file_uploader("PV Lastgang (Zeitstempel + kWh)", type=["csv","xlsx"])
-price_file = st.sidebar.file_uploader("Day-Ahead Preise (Zeitstempel + €/MWh)", type=["csv","xlsx"])
-max_power_kw = st.sidebar.number_input("Wechselrichter Maximalleistung (kW)", min_value=0.0, step=0.1, value=500.0)
-eeg_ct = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.0, step=0.1, value=6.3)
+pv_file = st.sidebar.file_uploader("PV Lastgang (Viertelstundenwerte in kWh)", type=["csv", "xlsx"])
+price_file = st.sidebar.file_uploader("Day-Ahead Preise (€/MWh, Viertelstundenwerte)", type=["csv", "xlsx"])
+
+# Parameter-Eingaben
+max_power_kw = st.sidebar.number_input("Wechselrichter Maximalleistung (kW)", min_value=0.0, step=0.1)
+eeg_ct_per_kwh = st.sidebar.number_input("EEG-Vergütung (ct/kWh)", min_value=0.0, step=0.1)
 
 # Hilfsfunktion zum Laden der Zeitreihen
-def load_series(file):
-    if not file:
+@st.cache_data
+def load_data(file):
+    if file is None:
         return None
-    if file.name.lower().endswith('.csv'):
-        df = pd.read_csv(file, usecols=[0,1], header=0)
+    if file.name.endswith('.csv'):
+        df = pd.read_csv(file, index_col=0, parse_dates=True)
     else:
-        df = pd.read_excel(file, usecols=[0,1], header=0)
-    df.iloc[:,0] = pd.to_datetime(df.iloc[:,0], errors='coerce')
-    df = df.dropna(subset=[df.columns[0]])
-    df.iloc[:,1] = pd.to_numeric(df.iloc[:,1], errors='coerce')
-    df = df.dropna(subset=[df.columns[1]])
-    series = pd.Series(df.iloc[:,1].values, index=df.iloc[:,0]).sort_index()
-    return series
+        df = pd.read_excel(file, index_col=0, parse_dates=True)
+    return df
 
 # Daten laden
-pv_kwh = load_series(pv_file)
-price_mwh = load_series(price_file)
+pv_data = load_data(pv_file)
+price_data = load_data(price_file)
 
-# Prüfen
-if pv_kwh is None or price_mwh is None:
+if pv_data is None or price_data is None:
     st.info("Bitte lade beide Dateien hoch, um die Analyse zu starten.")
     st.stop()
 
-# Umrechnung und Clipping
-pv_kw = pv_kwh * 4  # kW aus kWh/15min
-clipped_kw = pd.Series(np.minimum(pv_kw, max_power_kw), index=pv_kw.index)
-clipped_kwh = clipped_kw / 4
-lost_kwh = pv_kwh - clipped_kwh
+# Kopfzeilen anzeigen
+st.subheader("Datenübersicht")
+st.write("PV Lastgang (kWh pro 15 Minuten):", pv_data.head())
+st.write("Day-Ahead Preise (€/MWh):", price_data.head())
 
-# Preis synchronisieren und umrechnen
-price_ct = price_mwh.reindex(pv_kwh.index).fillna(0) / 10  # ct/kWh
+# Umrechnung: 15-Minuten kWh * 4 = kW Leistung
+pv_power_kw = pv_data.iloc[:, 0] * 4
+clipped_power_kw = np.minimum(pv_power_kw, max_power_kw)
+clipped_energy_kwh = clipped_power_kw / 4
+lost_energy_kwh = pv_data.iloc[:, 0] - clipped_energy_kwh
 
-# EEG-Einnahmen
-eeg_paid = np.where(price_ct >= 0, clipped_kwh * eeg_ct, 0)
+# Preise in ct/kWh
+price_ct_per_kwh = price_data.iloc[:, 0] / 10
 
-# Kennzahlen
-total_eeg = eeg_paid.sum() / 100
-loss_eeg = (lost_kwh * eeg_ct).sum() / 100
-hours_neg = ((pv_kwh > 0) & (price_ct < 0)).sum() / 4
-total_gen = clipped_kwh.sum()
-total_lost = lost_kwh.sum()
-pct_lost = total_lost / pv_kwh.sum() * 100
+# EEG-Einnahmen und Kennzahlen
+eeg_paid = np.where(price_ct_per_kwh > 0, clipped_energy_kwh * eeg_ct_per_kwh, 0)
+total_eeg_revenue = eeg_paid.sum() / 100
+lost_eeg_revenue = (lost_energy_kwh * eeg_ct_per_kwh).sum() / 100
+curtailed_hours = ((pv_data.iloc[:, 0] > 0) & (price_ct_per_kwh < 0)).sum() / 4
 
-# Formatierung (deutsch)
-def fmt(v,u=""):
-    s = f"{v:,.2f}".replace(",","X").replace(".",",").replace("X",".")
-    return s + (f" {u}" if u else "")
+total_pv_energy = pv_data.iloc[:, 0].sum()
+total_lost_energy = lost_energy_kwh.sum()
+total_generated_energy = clipped_energy_kwh.sum()
+lost_energy_pct = (total_lost_energy / total_pv_energy * 100) if total_pv_energy > 0 else 0
 
-# Anzeige Kennzahlen
+# Formatierte Strings (DE)
+fmt = lambda x, u="": f"{x:,.2f} {u}".replace(",", "X").replace(".", ",").replace("X", ".")
+str_eeg = fmt(total_eeg_revenue, "€")
+str_loss_eeg = fmt(lost_eeg_revenue, "€")
+str_hours = fmt(curtailed_hours, "h")
+str_loss_kwh = fmt(total_lost_energy, "kWh")
+str_pct = fmt(lost_energy_pct, "%")
+str_gen = fmt(total_generated_energy, "kWh")
+
+# Wirtschaftlichkeitsanalyse
 st.subheader("Wirtschaftlichkeitsanalyse")
+st.markdown("**Monetäre Auswertung**")
 c1, c2, c3 = st.columns(3)
-c1.metric("Gesamtertrag EEG", fmt(total_eeg,"€"))
-c2.metric("Verlust EEG (Clipping)", fmt(loss_eeg,"€"))
-c3.metric("Negativpreis-Stunden", fmt(hours_neg,"h"))
+c1.metric("Gesamtertrag EEG", str_eeg)
+c2.metric("Verlust EEG durch Clipping", str_loss_eeg)
+c3.metric("Abregelung (neg. Preise)", str_hours)
 
+st.markdown("**Energetische Auswertung**")
 c4, c5, c6 = st.columns(3)
-c4.metric("Verlust Clipping", fmt(total_lost,"kWh"))
-c5.metric("Verlust in %", fmt(pct_lost,"%"))
-c6.metric("Gesamtertrag (kWh)", fmt(total_gen,"kWh"))
+c4.metric("Verlust durch Clipping", str_loss_kwh)
+c5.metric("Verlust in %", str_pct)
+c6.metric("Gesamtertrag (kWh)", str_gen)
 
-# Charts
-fig1, ax1 = plt.subplots(figsize=(10,4))
-mask = pv_kw > max_power_kw
-ax1.bar(pv_kw.index, clipped_kw, color='orange', alpha=0.7, label='Nach Clipping')
-ax1.bar(pv_kw.index[mask], pv_kw[mask]-max_power_kw, bottom=max_power_kw,
-        color='red', label='Über Grenze')
-ax1.axhline(max_power_kw, color='firebrick', linestyle='--', label='WR-Max')
+# Charts erzeugen
+# 1) Clipping Zeitverlauf
+fig1, ax1 = plt.subplots(figsize=(10, 4))
+mask = pv_power_kw > max_power_kw
+ax1.bar(pv_power_kw.index, clipped_power_kw, label='Nach Clipping', color='orange', alpha=0.6)
+ax1.bar(pv_power_kw.index[mask], pv_power_kw[mask] - max_power_kw,
+        bottom=max_power_kw, label='Über Grenze', color='red')
+ax1.axhline(max_power_kw, linestyle='--', color='red', label='WR Max')
 ax1.set_title('Clipping im Zeitverlauf')
 ax1.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
-ax1.set_ylabel('Leistung (kW)')
+ax1.set_ylabel('Leistung in kW')
 ax1.legend()
 
-monthly_losses = lost_kwh.resample('M').sum()
-fig2, ax2 = plt.subplots(figsize=(10,4))
+# 2) Verluste pro Monat
+fig2, ax2 = plt.subplots(figsize=(10, 4))
+monthly_losses = lost_energy_kwh.resample('M').sum()
 ax2.bar(monthly_losses.index, monthly_losses.values, width=20, color='salmon')
-ax2.set_title('Monatliche Clipping-Verluste')
+ax2.set_title('Clipping-Verluste pro Monat')
 ax2.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
-ax2.set_ylabel('Verlust (kWh)')
+ax2.set_ylabel('Verlust in kWh')
 
-fig3, ax3 = plt.subplots(figsize=(10,4))
-pos = price_ct.where(price_ct>=0)
-neg = price_ct.where(price_ct<0)
-ax3.plot(pos.index, pos, color='green', label='Preis ≥ 0')
+# 3) Day-Ahead Preise
+fig3, ax3 = plt.subplots(figsize=(10, 4))
+pos = price_ct_per_kwh.where(price_ct_per_kwh >= 0)
+neg = price_ct_per_kwh.where(price_ct_per_kwh < 0)
+ax3.plot(pos.index, pos, color='orange', label='Preis ≥ 0')
 ax3.plot(neg.index, neg, color='red', label='Preis < 0')
-ax3.axhline(0, color='black', linestyle='--')
+ax3.axhline(0, color='black', linestyle='--', linewidth=1, label='Null-Linie')
 ax3.set_title('Day-Ahead Preise')
 ax3.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
-ax3.set_ylabel('Preis (ct/kWh)')
+ax3.set_ylabel('Preis in ct/kWh')
 ax3.legend()
 
+# Übersicht
 st.subheader('Clipping-Analyse Visualisierung')
 st.pyplot(fig1)
 st.pyplot(fig2)
 st.pyplot(fig3)
 
-# PDF-Export
-if st.button('PDF-Bericht exportieren'):
+# PDF Export
+if st.button('📄 PDF-Bericht exportieren'):
     buf = BytesIO()
     with PdfPages(buf) as pdf:
-        cover=plt.figure(figsize=(8.27,11.69)); cover.clf()
-        cover.text(0.5,0.6,'PV Clipping Analyse',ha='center',va='center',fontsize=24)
-        pdf.savefig(cover); plt.close(cover)
-        fk, axk = plt.subplots(figsize=(8.27,5)); axk.axis('off')
-        txt=(f"Gesamtertrag EEG: {fmt(total_eeg,'€')}\n"
-             f"Verlust EEG: {fmt(loss_eeg,'€')}\n"
-             f"Negativpreis-Stunden: {fmt(hours_neg,'h')}\n\n"
-             f"Verlust kWh: {fmt(total_lost,'kWh')}\n"
-             f"Verlust %: {fmt(pct_lost,'%')}\n"
-             f"Ertrag: {fmt(total_gen,'kWh')}")
-        axk.text(0.1,0.5,txt,fontsize=12)
-        pdf.savefig(fk); plt.close(fk)
-        pdf.savefig(fig1); pdf.savefig(fig2); pdf.savefig(fig3)
+        # Deckblatt
+        fig_cover = plt.figure(figsize=(8.27, 11.69))
+        fig_cover.clf()
+        fig_cover.text(0.5, 0.75, 'Wirtschaftlichkeitsanalyse – PV Clipping', ha='center', va='center', fontsize=20)
+        fig_cover.text(0.5, 0.7, 'Erstellt: ' + pd.Timestamp.now().strftime('%d.%m.%Y'), ha='center', va='center', fontsize=12)
+        pdf.savefig(fig_cover); plt.close(fig_cover)
+
+        # Monetäre Auswertung
+        fig_monetary, axm = plt.subplots(figsize=(8.27, 5))
+        axm.axis('off')
+        text1 = f"Gesamtertrag EEG: {str_eeg}\nVerlust EEG: {str_loss_eeg}\nAbregelung: {str_hours}"
+        axm.text(0.1, 0.5, text1, fontsize=12)
+        pdf.savefig(fig_monetary); plt.close(fig_monetary)
+
+        # Energetische Auswertung
+        fig_energy, axe = plt.subplots(figsize=(8.27, 5))
+        axe.axis('off')
+        text2 = f"Verlust kWh: {str_loss_kwh}\nVerlust %: {str_pct}\nErtrag: {str_gen}"
+        axe.text(0.1, 0.5, text2, fontsize=12)
+        pdf.savefig(fig_energy); plt.close(fig_energy)
+
+        # Charts
+        pdf.savefig(fig1)
+        pdf.savefig(fig2)
+        pdf.savefig(fig3)
     buf.seek(0)
-    st.download_button('Download PDF',data=buf,file_name='PV_Analyse.pdf',mime='application/pdf')
+    st.download_button('Download PDF', data=buf, file_name='PV_Wirtschaftlichkeitsanalyse.pdf', mime='application/pdf')

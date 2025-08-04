@@ -48,8 +48,13 @@ if pv_kwh is not None and price_mwh is not None:
     clipped_kwh = clipped_kw / 4
     lost_kwh = pv_kwh - clipped_kwh
 
-    # Preis in ct/kWh
-    price_ct = price_mwh / 10
+        # Preis in ct/kWh
+    # Auf gleichen Index wie PV-KW bringen (fehlende Preise = NaN)
+    price_ct = price_mwh.reindex(pv_kw.index)
+    # in ct/kWh umrechnen
+    price_ct = price_ct / 10
+    # NaN-Preise auf 0 setzen
+    price_ct = price_ct.fillna(0)
 
     # EEG-Einnahmen
     eeg_paid = np.where(price_ct > 0, clipped_kwh * eeg_ct_per_kwh, 0)

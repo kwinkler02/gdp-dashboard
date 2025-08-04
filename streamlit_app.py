@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -170,4 +169,3 @@ else:
                 pdf.savefig(f)
         buf.seek(0)
         st.download_button('Download PDF', data=buf, file_name='PV_Analyse.pdf', mime='application/pdf')
-```

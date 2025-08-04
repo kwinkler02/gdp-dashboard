@@ -31,30 +31,25 @@ def load_series(file):
     # Erste Spalte als Timestamp-Strings, zweite Spalte als Werte
     ts = df.iloc[:, 0].astype(str)
     vals = df.iloc[:, 1]
-    # Beispielwert prüfen auf Datumsformat
-    sample = ts.iloc[0]
-    # Aufteilen in Datum und Uhrzeit
-    parts = sample.split(' ')
-    date_str = parts[0]
-    time_str = parts[1] if len(parts) > 1 else ''
-    date_parts = date_str.split('.')
-    # Fall 1: nur Tag und Monat (z.B. 'DD.MM')
-    if len(date_parts) == 2:
-        year = pd.Timestamp.now().year
-        new_ts = ts + f'.{year}'
-        fmt = '%d.%m.%Y %H:%M'
-    # Fall 2: zweistelliges Jahr (z.B. 'DD.MM.YY')
-    elif len(date_parts) == 3 and len(date_parts[2]) == 2:
-        new_ts = ts
-        fmt = '%d.%m.%y %H:%M'
-    else:
-        new_ts = ts
-        fmt = None
-    # Parsen der Zeitstempel
-    if fmt:
-        dates = pd.to_datetime(new_ts, format=fmt, dayfirst=True)
-    else:
-        dates = pd.to_datetime(new_ts, dayfirst=True, infer_datetime_format=True)
+        # Konvertiere Datumsstrings:
+    current_year = pd.Timestamp.now().year
+    parsed = []
+    for s in ts:
+        parts = s.split()
+        date_str = parts[0]
+        time_str = parts[1] if len(parts) > 1 else '00:00'
+        d = date_str.split('.')
+        # Tag.Monat ohne Jahr
+        if len(d) == 2:
+            d.append(str(current_year))
+        # zweistelliges Jahr -> vierstellig
+        elif len(d) == 3 and len(d[2]) == 2:
+            d[2] = '20' + d[2]
+        # sonst unverändert
+        new_date = '.'.join(d) + ' ' + time_str
+        parsed.append(new_date)
+    # Einheitliches Format: %d.%m.%Y %H:%M
+    dates = pd.to_datetime(parsed, format='%d.%m.%Y %H:%M', dayfirst=True)
     series = pd.Series(vals.values, index=dates)
     series.name = vals.name or 'value'
     return series
